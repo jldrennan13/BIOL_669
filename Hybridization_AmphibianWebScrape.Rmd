@@ -1,0 +1,482 @@
+---
+title: "Hybridization_AmphibianWebScrape"
+author: "Jadyn Sethna"
+date: "2025-02-13"
+output: html_document
+---
+
+#Packages
+Download necessary packages for webscraping here. You will need to use the function install.packages() if you haven't used these packages before. 
+
+You can learn more about rvest here: https://rvest.tidyverse.org
+
+
+
+```{r setup, include=FALSE}
+library(rvest) #package used for webscraping html text. 
+library(httr)
+library(xml2)
+library(tidyverse) #package used for datacleaning,contains lots of common packages
+library(polite)
+library(dplyr) #package used for datacleaning and organization
+library(stringr)
+
+```
+
+#Webscrape Test
+
+You can Access the Amphibians of the World Dataframe here: 
+https://amphibiansoftheworld.amnh.org
+
+```{r webscrape}
+
+library(rvest)
+url = 'https://amphibiansoftheworld.amnh.org/content/search?subtree=&subtree_id=&country%5B%5D=563&geo-resident=true&geo-likely-occurs=true&geo-endemic=true&geo-introduced=true&search_type=count'
+
+web_amphib<-read_html(url) #Rvest package
+
+# Extract all the text from the page
+amphib_text <- web_amphib%>% html_nodes("body") %>% html_text()
+
+# Extract all links on the page
+links <- web_amphib %>% html_nodes("a") %>% html_attr("href")
+
+amphib<-web_amphib %>%html_elements("head")
+
+#####Okay it seems to be working I'm getting amphibian data####### Now start filtering
+
+#Use the inspect devtools to see the structure of the amphibians of the wold database. Countries are listed under option select this node for a list of options. 
+# Extract all country names from the <option> tags
+
+countries <- web_amphib %>%
+  html_nodes("option") %>%  # Select all <option> elements
+  html_text()  # Extract the text (country name
+print(countries)
+
+
+```
+
+#Canada Dataframe
+IT WORKS! DO NOT TOUCH THIS BLOCK
+```{r loop data pull}
+
+#example URL for Canada
+
+base_url='https://amphibiansoftheworld.amnh.org/content/search?subtree=&subtree_id=&country%5B%5D=563&geo-resident=true&geo-likely-occurs=true&geo-endemic=true&geo-introduced=true&search_type=count'
+
+page_content=read_html(base_url)
+
+
+# Find all species blocks
+species_blocks <- page_content %>%
+  html_nodes("div.Species")  # Adjust this selector if necessary
+
+# Initialize a list to store the data for each species
+species_data <- list()
+
+# Loop through each species block and extract both species name and location data
+for (i in seq_along(species_blocks)) {
+  # Extract the species name (assumed to be inside an <a> tag within the species block)
+  species_name <- species_blocks[i] %>%
+    html_node("a") %>%
+    html_text() %>%
+    trimws()
+  
+  # Extract location data (assumed to be inside <div> with class "highlight")
+  location_nodes <- species_blocks[i] %>%
+    html_nodes("div.highlight") %>%
+    html_text() %>%
+    trimws()
+
+  # Initialize variables to store locations by type
+  natural_resident <- character(0)
+  introduced <- character(0)
+  endemic <- character(0)
+  likely <- character(0)
+  
+  # Loop through each location node to check if it matches the types
+  for (location in location_nodes) {
+    location_cleaned <- str_replace_all(location, "\n", " ") %>%
+      str_replace_all("\\s+", " ") %>%
+      str_trim()
+
+    # Check for keywords and assign locations accordingly
+    if (grepl("Natural Resident", location_cleaned)) {
+      natural_resident <- c(natural_resident, str_extract(location_cleaned, "(?<=Natural Resident: ).*"))
+    }
+    
+    if (grepl("Introduced", location_cleaned)) {
+      introduced <- c(introduced, str_extract(location_cleaned, "(?<=Introduced: ).*"))
+    }
+    
+    if (grepl("Endemic", location_cleaned)) {
+      endemic <- c(endemic, str_extract(location_cleaned, "(?<=Endemic: ).*"))
+    }
+    
+    if (grepl("Likely", location_cleaned)) {
+      likely <- c(likely, str_extract(location_cleaned, "(?<=Likely: ).*"))
+    }
+  }
+
+  # Combine the extracted data into a data frame for each species
+  species_data[[i]] <- data.frame(
+    Species = species_name,
+    Natural_Resident = paste(natural_resident, collapse = "; "),  # Join all locations if there are multiple
+    Introduced = paste(introduced, collapse = "; "),
+    Endemic = paste(endemic, collapse = "; "),
+    Likely = paste(likely, collapse = "; "),
+    stringsAsFactors = FALSE
+  )
+}
+
+# Combine all species data into a single data frame
+species_df <- bind_rows(species_data)
+
+# Clean up any residual issues with whitespace
+species_df <- species_df %>%
+  mutate(
+    Species = str_trim(Species),
+    Natural_Resident = str_trim(Natural_Resident),
+    Introduced = str_trim(Introduced),
+    Endemic = str_trim(Endemic),
+    Likely = str_trim(Likely)
+  )
+
+# View the final data frame
+print(species_df)
+
+# View the cleaned data frame
+View(species_df)
+
+CanadaAmphib<-species_df
+
+write.csv(CanadaAmphib,'CanadaAmphibOnly.csv')
+
+
+```
+
+
+
+#Mexico Dataframe
+IT WORKS! DO NOT TOUCH THIS BLOCK
+```{r loop data pull}
+
+#example URL for Mexico
+
+base_url='https://amphibiansoftheworld.amnh.org/content/search?subtree=&subtree_id=&country%5B%5D=525&geo-resident=true&geo-likely-occurs=true&geo-endemic=true&geo-introduced=true&search_type=count'
+
+page_content=read_html(base_url)
+
+
+# Find all species blocks
+species_blocks <- page_content %>%
+  html_nodes("div.Species")  # Adjust this selector if necessary
+
+# Initialize a list to store the data for each species
+species_data <- list()
+
+# Loop through each species block and extract both species name and location data
+for (i in seq_along(species_blocks)) {
+  # Extract the species name (assumed to be inside an <a> tag within the species block)
+  species_name <- species_blocks[i] %>%
+    html_node("a") %>%
+    html_text() %>%
+    trimws()
+  
+  # Extract location data (assumed to be inside <div> with class "highlight")
+  location_nodes <- species_blocks[i] %>%
+    html_nodes("div.highlight") %>%
+    html_text() %>%
+    trimws()
+
+  # Initialize variables to store locations by type
+  natural_resident <- character(0)
+  introduced <- character(0)
+  endemic <- character(0)
+  likely <- character(0)
+  
+  # Loop through each location node to check if it matches the types
+  for (location in location_nodes) {
+    location_cleaned <- str_replace_all(location, "\n", " ") %>%
+      str_replace_all("\\s+", " ") %>%
+      str_trim()
+
+    # Check for keywords and assign locations accordingly
+    if (grepl("Natural Resident", location_cleaned)) {
+      natural_resident <- c(natural_resident, str_extract(location_cleaned, "(?<=Natural Resident: ).*"))
+    }
+    
+    if (grepl("Introduced", location_cleaned)) {
+      introduced <- c(introduced, str_extract(location_cleaned, "(?<=Introduced: ).*"))
+    }
+    
+    if (grepl("Endemic", location_cleaned)) {
+      endemic <- c(endemic, str_extract(location_cleaned, "(?<=Endemic: ).*"))
+    }
+    
+    if (grepl("Likely", location_cleaned)) {
+      likely <- c(likely, str_extract(location_cleaned, "(?<=Likely: ).*"))
+    }
+  }
+
+  # Combine the extracted data into a data frame for each species
+  species_data[[i]] <- data.frame(
+    Species = species_name,
+    Natural_Resident = paste(natural_resident, collapse = "; "),  # Join all locations if there are multiple
+    Introduced = paste(introduced, collapse = "; "),
+    Endemic = paste(endemic, collapse = "; "),
+    Likely = paste(likely, collapse = "; "),
+    stringsAsFactors = FALSE
+  )
+}
+
+# Combine all species data into a single data frame
+species_df <- bind_rows(species_data)
+
+
+# Clean up any residual issues with whitespace
+species_df <- species_df %>%
+  mutate(
+    Species = str_trim(Species),
+    Natural_Resident = str_trim(Natural_Resident),
+    Introduced = str_trim(Introduced),
+    Endemic = str_trim(Endemic),
+    Likely = str_trim(Likely)
+  )
+
+# View the final data frame
+print(species_df)
+
+# View the cleaned data frame
+View(species_df)
+
+MexicoAmphib<-species_df
+write.csv(MexicoAmphib,'MexicoAmphibOnly.csv')
+```
+
+
+
+
+#USA Dataframe
+IT WORKS! DO NOT TOUCH THIS BLOCK
+```{r loop data pull}
+
+#example URL for USA
+
+base_url='https://amphibiansoftheworld.amnh.org/content/search?subtree=&subtree_id=&country%5B%5D=603&geo-resident=true&geo-likely-occurs=true&geo-endemic=true&geo-introduced=true&search_type=count'
+
+page_content=read_html(base_url)
+
+
+# Find all species blocks
+species_blocks <- page_content %>%
+  html_nodes("div.Species")  # Adjust this selector if necessary
+
+# Initialize a list to store the data for each species
+species_data <- list()
+
+# Loop through each species block and extract both species name and location data
+for (i in seq_along(species_blocks)) {
+  # Extract the species name (assumed to be inside an <a> tag within the species block)
+  species_name <- species_blocks[i] %>%
+    html_node("a") %>%
+    html_text() %>%
+    trimws()
+  
+  # Extract location data (assumed to be inside <div> with class "highlight")
+  location_nodes <- species_blocks[i] %>%
+    html_nodes("div.highlight") %>%
+    html_text() %>%
+    trimws()
+
+  # Initialize variables to store locations by type
+  natural_resident <- character(0)
+  introduced <- character(0)
+  endemic <- character(0)
+  likely <- character(0)
+  
+  # Loop through each location node to check if it matches the types
+  for (location in location_nodes) {
+    location_cleaned <- str_replace_all(location, "\n", " ") %>%
+      str_replace_all("\\s+", " ") %>%
+      str_trim()
+
+    # Check for keywords and assign locations accordingly
+    if (grepl("Natural Resident", location_cleaned)) {
+      natural_resident <- c(natural_resident, str_extract(location_cleaned, "(?<=Natural Resident: ).*"))
+    }
+    
+    if (grepl("Introduced", location_cleaned)) {
+      introduced <- c(introduced, str_extract(location_cleaned, "(?<=Introduced: ).*"))
+    }
+    
+    if (grepl("Endemic", location_cleaned)) {
+      endemic <- c(endemic, str_extract(location_cleaned, "(?<=Endemic: ).*"))
+    }
+    
+    if (grepl("Likely", location_cleaned)) {
+      likely <- c(likely, str_extract(location_cleaned, "(?<=Likely: ).*"))
+    }
+  }
+
+  # Combine the extracted data into a data frame for each species
+  species_data[[i]] <- data.frame(
+    Species = species_name,
+    Natural_Resident = paste(natural_resident, collapse = "; "),  # Join all locations if there are multiple
+    Introduced = paste(introduced, collapse = "; "),
+    Endemic = paste(endemic, collapse = "; "),
+    Likely = paste(likely, collapse = "; "),
+    stringsAsFactors = FALSE
+  )
+}
+
+# Combine all species data into a single data frame
+species_df <- bind_rows(species_data)
+
+
+# Clean up any residual issues with whitespace
+species_df <- species_df %>%
+  mutate(
+    Species = str_trim(Species),
+    Natural_Resident = str_trim(Natural_Resident),
+    Introduced = str_trim(Introduced),
+    Endemic = str_trim(Endemic),
+    Likely = str_trim(Likely)
+  )
+
+# View the final data frame
+print(species_df)
+
+# View the cleaned data frame
+View(species_df)
+
+USAAmphib<-species_df
+write.csv(USAAmphib,'USAAmphibOnly.csv')
+```
+
+
+
+#Global Dataframe
+IT WORKS! DO NOT TOUCH THIS BLOCK
+```{r loop data pull}
+
+#example URL for MWorld
+
+base_url='https://amphibiansoftheworld.amnh.org/content/search?subtree=&subtree_id=&country%5B%5D=614&country%5B%5D=389&country%5B%5D=445&country%5B%5D=388&country%5B%5D=302&country%5B%5D=153&country%5B%5D=182&country%5B%5D=414&country%5B%5D=305&country%5B%5D=541&country%5B%5D=555&country%5B%5D=584&country%5B%5D=219&country%5B%5D=527&country%5B%5D=374&country%5B%5D=191&country%5B%5D=457&country%5B%5D=232&country%5B%5D=477&country%5B%5D=440&country%5B%5D=273&country%5B%5D=569&country%5B%5D=593&country%5B%5D=333&country%5B%5D=294&country%5B%5D=607&country%5B%5D=442&country%5B%5D=194&country%5B%5D=347&country%5B%5D=450&country%5B%5D=478&country%5B%5D=373&country%5B%5D=269&country%5B%5D=471&country%5B%5D=563&country%5B%5D=588&country%5B%5D=188&country%5B%5D=521&country%5B%5D=583&country%5B%5D=253&country%5B%5D=505&country%5B%5D=599&country%5B%5D=266&country%5B%5D=160&country%5B%5D=606&country%5B%5D=260&country%5B%5D=436&country%5B%5D=330&country%5B%5D=303&country%5B%5D=564&country%5B%5D=520&country%5B%5D=386&country%5B%5D=321&country%5B%5D=204&country%5B%5D=419&country%5B%5D=367&country%5B%5D=200&country%5B%5D=554&country%5B%5D=534&country%5B%5D=162&country%5B%5D=301&country%5B%5D=508&country%5B%5D=437&country%5B%5D=163&country%5B%5D=585&country%5B%5D=581&country%5B%5D=262&country%5B%5D=482&country%5B%5D=551&country%5B%5D=601&country%5B%5D=611&country%5B%5D=472&country%5B%5D=316&country%5B%5D=1132348&country%5B%5D=243&country%5B%5D=245&country%5B%5D=514&country%5B%5D=490&country%5B%5D=509&country%5B%5D=1132349&country%5B%5D=155&country%5B%5D=307&country%5B%5D=161&country%5B%5D=486&country%5B%5D=310&country%5B%5D=1132350&country%5B%5D=278&country%5B%5D=387&country%5B%5D=441&country%5B%5D=166&country%5B%5D=1264363&country%5B%5D=349&country%5B%5D=223&country%5B%5D=513&country%5B%5D=1132351&country%5B%5D=206&country%5B%5D=365&country%5B%5D=544&country%5B%5D=203&country%5B%5D=196&country%5B%5D=1132352&country%5B%5D=590&country%5B%5D=362&country%5B%5D=552&country%5B%5D=494&country%5B%5D=537&country%5B%5D=846210&country%5B%5D=1132355&country%5B%5D=573&country%5B%5D=435&country%5B%5D=451&country%5B%5D=181&country%5B%5D=454&country%5B%5D=589&country%5B%5D=600&country%5B%5D=491&country%5B%5D=498&country%5B%5D=561&country%5B%5D=344&country%5B%5D=1132353&country%5B%5D=208&country%5B%5D=187&country%5B%5D=267&country%5B%5D=1080969&country%5B%5D=1080968&country%5B%5D=190&country%5B%5D=202&country%5B%5D=210&country%5B%5D=352&country%5B%5D=574&country%5B%5D=205788&country%5B%5D=251&country%5B%5D=525&country%5B%5D=549&country%5B%5D=480&country%5B%5D=277&country%5B%5D=343&country%5B%5D=341&country%5B%5D=424&country%5B%5D=400&country%5B%5D=375&country%5B%5D=444&country%5B%5D=392&country%5B%5D=193&country%5B%5D=613&country%5B%5D=370&country%5B%5D=312&country%5B%5D=235&country%5B%5D=174&country%5B%5D=556&country%5B%5D=562&country%5B%5D=511&country%5B%5D=283&country%5B%5D=582&country%5B%5D=1132354&country%5B%5D=492&country%5B%5D=568&country%5B%5D=432&country%5B%5D=167&country%5B%5D=591&country%5B%5D=540&country%5B%5D=175&country%5B%5D=497&country%5B%5D=660345&country%5B%5D=378&country%5B%5D=241&country%5B%5D=578&country%5B%5D=272&country%5B%5D=288&country%5B%5D=669534&country%5B%5D=533&country%5B%5D=239&country%5B%5D=280&country%5B%5D=518&country%5B%5D=669571&country%5B%5D=270&country%5B%5D=248&country%5B%5D=597&country%5B%5D=306&country%5B%5D=617&country%5B%5D=185&country%5B%5D=577&country%5B%5D=506&country%5B%5D=461&country%5B%5D=1173931&country%5B%5D=323&country%5B%5D=438&country%5B%5D=244123&country%5B%5D=393&country%5B%5D=337&country%5B%5D=231&country%5B%5D=363&country%5B%5D=332&country%5B%5D=502&country%5B%5D=615&country%5B%5D=173&country%5B%5D=150&country%5B%5D=335&country%5B%5D=495&country%5B%5D=448&country%5B%5D=325&country%5B%5D=358&country%5B%5D=456&country%5B%5D=545&country%5B%5D=281&country%5B%5D=425&country%5B%5D=183&country%5B%5D=309&country%5B%5D=324&country%5B%5D=592&country%5B%5D=238&country%5B%5D=460&country%5B%5D=559&country%5B%5D=603&country%5B%5D=429&country%5B%5D=523&country%5B%5D=224&country%5B%5D=328&country%5B%5D=229&country%5B%5D&geo-resident=true&geo-likely-occurs=true&geo-endemic=true&geo-introduced=true&search_type=count'
+
+page_content=read_html(base_url)
+
+
+# Find all species blocks
+species_blocks <- page_content %>%
+  html_nodes("div.Species")  # Adjust this selector if necessary
+
+# Initialize a list to store the data for each species
+species_data <- list()
+
+# Loop through each species block and extract both species name and location data
+for (i in seq_along(species_blocks)) {
+  # Extract the species name (assumed to be inside an <a> tag within the species block)
+  species_name <- species_blocks[i] %>%
+    html_node("a") %>%
+    html_text() %>%
+    trimws()
+  
+  # Extract location data (assumed to be inside <div> with class "highlight")
+  location_nodes <- species_blocks[i] %>%
+    html_nodes("div.highlight") %>%
+    html_text() %>%
+    trimws()
+
+  # Initialize variables to store locations by type
+  natural_resident <- character(0)
+  introduced <- character(0)
+  endemic <- character(0)
+  likely <- character(0)
+  
+  # Loop through each location node to check if it matches the types
+  for (location in location_nodes) {
+    location_cleaned <- str_replace_all(location, "\n", " ") %>%
+      str_replace_all("\\s+", " ") %>%
+      str_trim()
+
+    # Check for keywords and assign locations accordingly
+    if (grepl("Natural Resident", location_cleaned)) {
+      natural_resident <- c(natural_resident, str_extract(location_cleaned, "(?<=Natural Resident: ).*"))
+    }
+    
+    if (grepl("Introduced", location_cleaned)) {
+      introduced <- c(introduced, str_extract(location_cleaned, "(?<=Introduced: ).*"))
+    }
+    
+    if (grepl("Endemic", location_cleaned)) {
+      endemic <- c(endemic, str_extract(location_cleaned, "(?<=Endemic: ).*"))
+    }
+    
+    if (grepl("Likely", location_cleaned)) {
+      likely <- c(likely, str_extract(location_cleaned, "(?<=Likely: ).*"))
+    }
+  }
+
+  # Combine the extracted data into a data frame for each species
+  species_data[[i]] <- data.frame(
+    Species = species_name,
+    Natural_Resident = paste(natural_resident, collapse = "; "),  # Join all locations if there are multiple
+    Introduced = paste(introduced, collapse = "; "),
+    Endemic = paste(endemic, collapse = "; "),
+    Likely = paste(likely, collapse = "; "),
+    stringsAsFactors = FALSE
+  )
+}
+
+# Combine all species data into a single data frame
+species_df <- bind_rows(species_data)
+
+
+# Clean up any residual issues with whitespace
+species_df <- species_df %>%
+  mutate(
+    Species = str_trim(Species),
+    Natural_Resident = str_trim(Natural_Resident),
+    Introduced = str_trim(Introduced),
+    Endemic = str_trim(Endemic),
+    Likely = str_trim(Likely)
+  )
+
+# View the final data frame
+print(species_df)
+
+# View the cleaned data frame
+View(species_df)
+
+GlobalAmphib<-species_df
+
+```
+
+```{r}
+#### Function to scrape data for each country###
+scrape_country_data <- function(country_value) {
+  # Construct the URL for the country
+  url <- paste0(base_url, country_value)
+  
+  # Read the HTML content of the country-specific page
+  web_page <- read_html(url)
+  
+  # Example: Extract species count or any other data you want
+  species_count <- web_page %>%
+    html_nodes(".species-count") %>%  # Adjust with the correct selector for species count
+    html_text() %>%
+    trimws()  # Clean up the text
+  
+  # Return the species count or any other extracted data
+  return(species_count)
+}
+
+# Loop through the country values and scrape the data
+country_data <- lapply(country_values, scrape_country_data)
+
+
+```
+
+
+
