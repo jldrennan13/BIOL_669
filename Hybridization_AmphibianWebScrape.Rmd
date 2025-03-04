@@ -5,7 +5,7 @@ date: "2025-02-13"
 output: html_document
 ---
 
-#Packages
+#Set-Up
 Download necessary packages for webscraping here. You will need to use the function install.packages() if you haven't used these packages before. 
 
 You can learn more about rvest here: https://rvest.tidyverse.org
@@ -23,7 +23,7 @@ library(stringr) #package to remove excess space and adjust formatting when pull
 
 ```
 
-#Webscrape Test
+#Webscraping
 
 You can Access the Amphibians of the World Dataframe here: 
 https://amphibiansoftheworld.amnh.org
@@ -56,7 +56,7 @@ print(countries)
 
 ```
 
-#Canada Dataframe
+###Canada Dataframe
 IT WORKS! DO NOT TOUCH THIS BLOCK
 ```{r loop data pull}
 
@@ -157,7 +157,7 @@ write.csv(CanadaAmphib,'CanadaAmphibOnly.csv')
 
 
 
-#Mexico Dataframe
+###Mexico Dataframe
 IT WORKS! DO NOT TOUCH THIS BLOCK
 ```{r loop data pull}
 
@@ -257,7 +257,7 @@ write.csv(MexicoAmphib,'MexicoAmphibOnly.csv')
 
 
 
-#USA Dataframe
+###USA Dataframe
 IT WORKS! DO NOT TOUCH THIS BLOCK
 ```{r loop data pull}
 
@@ -356,7 +356,7 @@ write.csv(USAAmphib,'USAAmphibOnly.csv')
 
 
 
-#Global Dataframe
+###Global Dataframe
 
 URL is too big to include all data together so split into A through M country names and N through Z country names.
 
@@ -560,4 +560,73 @@ write.csv(GlobalAmphib,'GlobalAmphib.csv')
 
 ```
 
+#Mapping
+Using IUCN shapefiles: https://damariszurell.github.io/EEC-MGC/a4_RangeMaps.html
+
+```{r Maps}
+library(terra)
+library(ggplot2)
+library(maps)
+library(ggspatial)
+library(sf)
+
+# Load the shape file
+caudata<- terra::vect("/Users/jadyns/Documents/JadynS/UNC/Courses/Hybridization/IUCN Range Maps/CAUDATA/CAUDATA.shp")
+
+#TO map with ggplot use the simple features package. This takes a while. Be patient :)
+caudata_sf<-st_as_sf(caudata)
+
+#Check spatial specifics
+class(caudata)
+names(caudata)
+caudata$sci_name<-as.factor(caudata$sci_name)
+
+#generate a world map
+world_map <- map_data("world")
+
+#Filter by genus or species of interest. This is an example
+
+species_ranges_genus <- caudata_sf %>% 
+  filter(genus %in% c("Ambystoma"))
+
+#Map relevant ranges 
+ggplot() +
+  geom_map(data = world_map, map = world_map, aes(x = long, y = lat, map_id = region), 
+           color = "black", fill = "lightgrey", size = 0.2) +
+  geom_sf(data = species_ranges_genus, aes(fill = sci_name), color = "transparent",alpha=0.5) +
+  theme_minimal() +
+  ggtitle("Species Range Map") +
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    legend.title = element_text(size = 10),  # Adjust legend title size
+    legend.text = element_text(size = 8),    # Adjust legend text size
+    legend.key.size = unit(0.5, "cm"),      # Adjust legend key size
+    legend.position = "right"                # Move the legend to the right of the plot
+  ) +
+  coord_sf(datum = NA)  # Removes the default coordinate system grid
+
+```
+
+#Range size
+
+###By Species
+```{r Range Size}
+
+# Calculate the area for each species' range
+species_ranges_genus$area <- st_area(species_ranges_genus)
+
+# Summarize total area for each species
+species_range_sizes <- species_ranges_genus %>%
+  group_by(sci_name) %>%
+  summarize(range_size = sum(area, na.rm = TRUE))  
+
+species_range_sizes
+```
+
+###Overlapping Range
+
+(I'm still working on this one...)
+```{R overlapping range}
 
