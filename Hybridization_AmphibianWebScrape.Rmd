@@ -11,7 +11,6 @@ Download necessary packages for webscraping here. You will need to use the funct
 You can learn more about rvest here: https://rvest.tidyverse.org
 
 
-
 ```{r setup, include=FALSE}
 library(rvest) #package used for webscraping html text. 
 library(httr)
@@ -563,7 +562,7 @@ write.csv(GlobalAmphib,'GlobalAmphib.csv')
 #Mapping
 Using IUCN shapefiles: https://damariszurell.github.io/EEC-MGC/a4_RangeMaps.html
 
-```{r Maps}
+```{r Maps Download}
 library(terra)
 library(ggplot2)
 library(maps)
@@ -573,27 +572,49 @@ library(sf)
 # Load the shape file
 caudata<- terra::vect("/Users/jadyns/Documents/JadynS/UNC/Courses/Hybridization/IUCN Range Maps/CAUDATA/CAUDATA.shp")
 
-#TO map with ggplot use the simple features package. This takes a while. Be patient :)
-caudata_sf<-st_as_sf(caudata)
+anura1<-terra::vect("/Users/jadyns/Documents/JadynS/UNC/Courses/Hybridization/IUCN Range Maps/ANURA/ANURA_PART1.shp")
 
+anura2<-terra::vect("/Users/jadyns/Documents/JadynS/UNC/Courses/Hybridization/IUCN Range Maps/ANURA/ANURA_PART2.shp")
+
+gymnophiona<-terra::vect("/Users/jadyns/Documents/JadynS/UNC/Courses/Hybridization/IUCN Range Maps/GYMNOPHIONA/GYMNOPHIONA.shp")
+
+shapefile_list<-list(caudata,anura1,anura2,gymnophiona)
+
+all_amphib <- do.call(rbind, shapefile_list)
+
+#TO map with ggplot use the simple features package. This takes a while. Be patient :)
+all_amphib_sf<-st_as_sf(all_amphib)
+```
+
+```{r Spatial Manipulation}
 #Check spatial specifics
-class(caudata)
-names(caudata)
-caudata$sci_name<-as.factor(caudata$sci_name)
+class(all_amphib_sf)
+names(all_amphib_sf)
+all_amphib_sf$sci_name<-as.factor(all_amphib_sf$sci_name)
 
 #generate a world map
 world_map <- map_data("world")
 
 #Filter by genus or species of interest. This is an example
 
-species_ranges_genus <- caudata_sf %>% 
-  filter(genus %in% c("Ambystoma"))
+species_ranges_genus <- all_amphib_sf %>% 
+  filter(genus %in% c("Plethodon"))
+
+#Manual Example
+
+unique(all_amphib_sf$legend)
+
+Alytesdickhilleni<-all_amphib_sf %>% 
+  filter(sci_name %in% c("Alytes dickhilleni"))
+
+Alytesobstetricans<-all_amphib_sf %>% 
+  filter(sci_name %in% c("Alytes obstetricans"))
 
 #Map relevant ranges 
 ggplot() +
   geom_map(data = world_map, map = world_map, aes(x = long, y = lat, map_id = region), 
            color = "black", fill = "lightgrey", size = 0.2) +
-  geom_sf(data = species_ranges_genus, aes(fill = sci_name), color = "transparent",alpha=0.5) +
+  geom_sf(data = Alytesdickhilleni, aes(fill = sci_name), color = "transparent",alpha=0.5) +
   theme_minimal() +
   ggtitle("Species Range Map") +
   theme(
@@ -614,15 +635,112 @@ ggplot() +
 ###By Species
 ```{r Range Size}
 
-# Calculate the area for each species' range
-species_ranges_genus$area <- st_area(species_ranges_genus)
+#Upload overlap data
 
-# Summarize total area for each species
-species_range_sizes <- species_ranges_genus %>%
-  group_by(sci_name) %>%
-  summarize(range_size = sum(area, na.rm = TRUE))  
+# Read the data
+AmphibAreaList <- read.csv("/Users/jadyns/Documents/JadynS/UNC/Courses/Hybridization/GlobalAmphibHybridArea.csv")
 
-species_range_sizes
+# Initialize vectors to store the results
+ResidentArea <- numeric(nrow(AmphibAreaList))
+IntroducedArea <- numeric(nrow(AmphibAreaList))
+OverlapArea <- numeric(nrow(AmphibAreaList))
+
+# Create a flag column (default is 'No Issue')
+AmphibAreaList$IssueFlag <- "No Issue"
+
+# Get unique species
+IntroducedVect <- unique(AmphibAreaList$Introduced)
+ResidentVect <- unique(AmphibAreaList$Resident)
+
+combined_list <- unique(c(IntroducedVect, ResidentVect))
+
+# Check for species name matches between your list and all_amphib_sf
+species_name_issue <- combined_list[!combined_list %in% all_amphib_sf$sci_name]
+
+# Flag rows where the species names in AmphibAreaList don't match
+AmphibAreaList$IssueFlag[AmphibAreaList$Resident %in% species_name_issue | AmphibAreaList$Introduced %in% species_name_issue] <- "Species Name Mismatch"
+
+
+# Loop through the rows of the data frame
+for (i in 1:nrow(AmphibAreaList)) {
+  # Get the species names for the current row
+  ResidentSpeciesName <- AmphibAreaList$Resident[i]
+  IntroducedSpeciesName <- AmphibAreaList$Introduced[i]
+  
+  # Filter the 'all_amphib_sf' data frame for the species 1 and species 2
+  ResidentRange <- all_amphib_sf %>% 
+    filter(sci_name == ResidentSpeciesName)
+  
+  IntroducedRange <- all_amphib_sf %>% 
+    filter(sci_name == IntroducedSpeciesName)
+  
+  # Ensure both species ranges have valid geometries
+  if (nrow(ResidentRange) == 0 | nrow(IntroducedRange) == 0) {
+    AmphibAreaList$IssueFlag[i] <- "No Data Available"
+    next  # Skip if no data is found for either species
+  }
+
+  # Clean and simplify geometries if necessary
+  ResidentRange <- st_make_valid(ResidentRange)
+  IntroducedRange <- st_make_valid(IntroducedRange)
+  
+  # Check if any geometries are empty (now using `any(st_is_empty(...))`)
+  if (any(st_is_empty(ResidentRange$geometry)) | any(st_is_empty(IntroducedRange$geometry))) {
+    AmphibAreaList$IssueFlag[i] <- "Empty Geometry"
+    next  # Skip if either geometry is empty
+  }
+
+  # Ensure CRS consistency and use an appropriate CRS for area calculations (e.g., UTM)
+  if (st_crs(ResidentRange) != st_crs(IntroducedRange)) {
+    IntroducedRange <- st_transform(IntroducedRange, st_crs(ResidentRange))
+  }
+
+  # Optional: Transform both to a projected CRS for accurate area calculation
+  ResidentRange <- st_transform(ResidentRange, crs = 3395)  # Example: WGS 84/Pseudo Mercator uses meters as area unit
+  IntroducedRange <- st_transform(IntroducedRange, crs = 3395)
+
+  # Calculate the areas for Resident and Introduced species ranges
+  ResidentArea[i] <- st_area(ResidentRange) %>% sum()
+  IntroducedArea[i] <- st_area(IntroducedRange) %>% sum()
+
+  # Check for extremely small or large areas
+  if (ResidentArea[i] < 0 | IntroducedArea[i] < 0) {
+    AmphibAreaList$IssueFlag[i] <- "Negative Area"
+    next
+  }
+  if (ResidentArea[i] == 0 | IntroducedArea[i] == 0) {
+    AmphibAreaList$IssueFlag[i] <- "Zero Area"
+    next
+  }
+
+  # Calculate the overlap area between Resident and Introduced species ranges
+  tryCatch({
+    OverlapRange <- st_intersection(ResidentRange, IntroducedRange)
+    OverlapArea[i] <- st_area(OverlapRange) %>% sum()
+
+    # Check for zero or negative overlap
+    if (OverlapArea[i] <= 0) {
+      AmphibAreaList$IssueFlag[i] <- "Zero or Negative Overlap"
+    }
+  }, error = function(e) {
+    message("Error with row ", i, ": ", e$message)
+    AmphibAreaList$IssueFlag[i] <- "Intersection Error"
+    next
+  })
+}
+
+# Add the calculated areas to the original data frame
+AmphibAreaList$ResidentArea <- ResidentArea
+AmphibAreaList$IntroducedArea <- IntroducedArea
+AmphibAreaList$OverlapArea <- OverlapArea
+AmphibAreaList$IntroducedPerCentOverlap<-OverlapArea/ResidentArea *100
+
+# Convert the 'value' column to non-scientific format
+AmphibAreaList$IntroducedPerCentOverlap <- format(AmphibAreaList$IntroducedPerCentOverlap, scientific = FALSE)
+# Print the updated data frame with the new columns
+print(AmphibAreaList)
+
+write.csv(AmphibAreaList,"AmphibAreaList.csv")
 ```
 
 ###Overlapping Range
