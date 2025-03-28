@@ -743,8 +743,3 @@ print(AmphibAreaList)
 write.csv(AmphibAreaList,"AmphibAreaList.csv")
 ```
 
-###Overlapping Range
-
-(I'm still working on this one...)
-```{R overlapping range}
-
